@@ -169,12 +169,12 @@ We calculate the angle between vectors.
 * **Mobile App:** Convert the React website into a React Native mobile app.
 
 ## 🔗 Live Demo
-🎥 **[👉 Click here to visit the Live Website](https://movie-recommender-snowy.vercel.app)** *(Hosted on Vercel for frontend and Render for backend)*
+🎥 **[👉 Click here to visit the Live Website](https://movie-recommender-main.vercel.app)** *(Hosted on Vercel for frontend and Render for backend)*
 
 ---
 
 ## 👨‍💻 Author
 **Vijay Battula**
-* **GitHub:** [https://github.com/Vijaybattula26]
-* **LinkedIn:** [https://www.linkedin.com/in/battulavijay]
+* **GitHub:** [https://github.com/Brahmaiah18]
+* **LinkedIn:** [www.linkedin.com/in/brahmaiah-daggu-24b8792aa]
 * **Project Type:** MCA Final Year Project
