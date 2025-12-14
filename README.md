@@ -174,7 +174,7 @@ We calculate the angle between vectors.
 ---
 
 ## 👨‍💻 Author
-**Vijay Battula**
+**Brahmaiah Daggu**
 * **GitHub:** [https://github.com/Brahmaiah18]
 * **LinkedIn:** [www.linkedin.com/in/brahmaiah-daggu-24b8792aa]
 * **Project Type:** MCA Final Year Project
