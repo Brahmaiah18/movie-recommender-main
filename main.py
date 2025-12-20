@@ -14,7 +14,7 @@ import pandas as pd
 # ==========================================
 
 # This command looks for the Cloud Database. If not found, it uses your Local one.
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:admin123@127.0.0.1:5433/postgres")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Daggu%40123@127.0.0.1:5432/movie_recommender")
 
 # FIX: Render uses 'postgres://' but SQLAlchemy needs 'postgresql://'
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
@@ -156,49 +156,24 @@ def log_history(log: HistoryLog, db: Session = Depends(get_db)):
 
 @app.get("/recommend_hybrid/{user_id}")
 def recommend_hybrid(user_id: int, db: Session = Depends(get_db)):
-    recommended_movies = []
-    
-    # STRATEGY A: User Ratings
-    user_ratings = db.query(Rating).filter(Rating.user_id == user_id).all()
-    
-    if user_ratings:
-        high_rated = [r for r in user_ratings if r.rating >= 4]
-        if high_rated:
-            last_liked = high_rated[-1].movie_id
-            movie_row = movies[movies['movie_id'] == last_liked]
-            
-            if not movie_row.empty:
-                movie_idx = movie_row.index[0]
-                distances = similarity[movie_idx]
-                movies_list = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
-                
-                for i in movies_list:
-                    rec_id = movies.iloc[i[0]].movie_id
-                    recommended_movies.append({
-                        "title": movies.iloc[i[0]].title,
-                        "id": int(rec_id),
-                    })
-                return {"type": "Because you liked " + movie_row.iloc[0].title, "recommendations": recommended_movies}
+    try:
+        recommended_movies = []
 
-    # STRATEGY B: Preferred Genres
-    user = db.query(User).filter(User.id == user_id).first()
-    if user and user.genres:
-        user_genres = user.genres.split(",") 
-        filtered = movies[movies['genres'].apply(lambda x: any(g in x for g in user_genres))].head(5)
-        for index, row in filtered.iterrows():
+        # SAFE FALLBACK ONLY (no ML)
+        for i in range(5):
             recommended_movies.append({
-                "title": row['title'],
-                "id": int(row['movie_id']),
+                "title": movies.iloc[i].title,
+                "id": int(movies.iloc[i].movie_id),
             })
-        return {"type": "Based on your interests (" + user_genres[0] + ")", "recommendations": recommended_movies}
 
-    # STRATEGY C: Trending
-    for i in range(5):
-        recommended_movies.append({
-            "title": movies.iloc[i].title,
-            "id": int(movies.iloc[i].movie_id),
-        })
-    return {"type": "Trending Movies", "recommendations": recommended_movies}
+        return {
+            "type": "Trending Now",
+            "recommendations": recommended_movies
+        }
+
+    except Exception as e:
+        print("HYBRID ERROR:", e)
+        raise HTTPException(status_code=500, detail="Hybrid recommendation failed")
 
 @app.get("/recommend/{movie}")
 def recommend(movie: str):
