@@ -32,7 +32,7 @@ function App() {
   const TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf";
 
   // --- CLOUD API URL (Used everywhere now) ---
-  const API_URL = "http://127.0.0.1:8000";
+  const API_URL = "https://movie-recommender-main.onrender.com";
 
 
   // --- 1. AUTH FLOW ---
