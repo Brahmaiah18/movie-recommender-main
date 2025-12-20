@@ -1,10 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
 function App() {
-  const [view, setView] = useState('login'); 
-  const [user, setUser] = useState(null);    
+  const [view, setView] = useState('login');
+  const [user, setUser] = useState(null);
+  useEffect(() => {
+  if (view === "dashboard" && user?.id) {
+    fetchHybridRecs(user.id);
+  }
+}, [view, user]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -18,23 +24,24 @@ function App() {
   const [recommendations, setRecommendations] = useState([]);
   const [hybridRecs, setHybridRecs] = useState([]); // For "Recommended For You"
   const [recReason, setRecReason] = useState('Trending Now');
-  
+
   const [loading, setLoading] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [userRating, setUserRating] = useState(0);
 
   const TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf";
-  
+
   // --- CLOUD API URL (Used everywhere now) ---
   const API_URL = "https://movie-recommender-jbxp.onrender.com";
 
+
   // --- 1. AUTH FLOW ---
-  const handleSignup = async () => { 
+  const handleSignup = async () => {
     try {
       // FIX: Uses Cloud URL
       const res = await axios.post(`${API_URL}/signup`, { email, password });
-      setUser({ id: res.data.user_id, email }); 
-      setView('onboarding'); 
+      setUser({ id: res.data.user_id, email });
+      setView('onboarding');
     } catch (err) { setAuthError("Signup failed. Email may be taken."); }
   };
 
@@ -44,7 +51,7 @@ function App() {
       const res = await axios.post(`${API_URL}/login`, { email, password });
       setUser({ id: res.data.user_id, email });
       if (!res.data.genres) setView('onboarding');
-      else { 
+      else {
         setView('dashboard');
         fetchHybridRecs(res.data.user_id);
       }
@@ -71,21 +78,27 @@ function App() {
   };
 
   // --- 3. HYBRID RECOMMENDATIONS ---
-  const fetchHybridRecs = async (userId) => {
-    try {
-      // FIX: Uses Cloud URL
-      const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
-      const rawRecs = res.data.recommendations;
-      setRecReason(res.data.type); 
+const fetchHybridRecs = async (userId) => {
+  try {
+    const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
 
-      const moviesWithPosters = [];
-      for (const rec of rawRecs) {
-        const posterUrl = await fetchPoster(rec.id);
-        moviesWithPosters.push({ ...rec, poster: posterUrl });
-      }
-      setHybridRecs(moviesWithPosters);
-    } catch (err) { console.error("Hybrid fetch error", err); }
-  };
+    console.log("HYBRID API RESPONSE:", res.data); // debug
+
+    const rawRecs = res.data.recommendations || [];
+    setRecReason(res.data.type || "Trending Now");
+
+    const moviesWithPosters = [];
+    for (const rec of rawRecs) {
+      const posterUrl = await fetchPoster(rec.id);
+      moviesWithPosters.push({ ...rec, poster: posterUrl });
+    }
+
+    setHybridRecs(moviesWithPosters);
+  } catch (error) {
+    console.error("Hybrid fetch error:", error);
+  }
+};
+
 
   // --- MOVIE HELPERS ---
   const fetchPoster = async (movieId) => {
@@ -99,18 +112,29 @@ function App() {
   };
 
   const handleSearch = async () => {
-    setRecommendations([]); setLoading(true);
-    try {
-      // FIX: Uses Cloud URL
-      const res = await axios.get(`${API_URL}/recommend/${movie}`);
-      const moviesWithPosters = [];
-      for (const rec of res.data.recommendations) {
-        const posterUrl = await fetchPoster(rec.id);
-        moviesWithPosters.push({ ...rec, poster: posterUrl });
-      }
-      setRecommendations(moviesWithPosters);
-    } catch (err) { alert("Movie not found!"); } finally { setLoading(false); }
-  };
+  setLoading(true);
+
+  // 🔥 IMPORTANT: remove hybrid when searching
+  setHybridRecs([]);
+  setRecReason("");
+
+  try {
+    const res = await axios.get(`${API_URL}/recommend/${movie}`);
+    const moviesWithPosters = [];
+
+    for (const rec of res.data.recommendations) {
+      const posterUrl = await fetchPoster(rec.id);
+      moviesWithPosters.push({ ...rec, poster: posterUrl });
+    }
+
+    setRecommendations(moviesWithPosters);
+  } catch (err) {
+    alert("Movie not found!");
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   // --- SAFE MODE CLICK HANDLER ---
   const handleMovieClick = async (movie) => {
@@ -118,7 +142,7 @@ function App() {
     if (user) {
       // FIX: Uses Cloud URL
       axios.post(`${API_URL}/log_history`, { user_id: user.id, movie_id: movie.id })
-           .catch(err => console.log("Logging skipped, opening movie anyway."));
+        .catch(err => console.log("Logging skipped, opening movie anyway."));
     }
 
     // 2. Open Details
@@ -160,13 +184,13 @@ function App() {
   if (view === 'onboarding') {
     return (
       <div className="App auth-container">
-        <div className="auth-box" style={{width: '600px'}}>
+        <div className="auth-box" style={{ width: '600px' }}>
           <h1>Welcome! 👋</h1>
           <h2>Select your favorite genres</h2>
           <div className="genres-grid">
             {genresList.map(g => (
-              <button 
-                key={g} 
+              <button
+                key={g}
                 className={`genre-btn ${selectedGenres.includes(g) ? 'selected' : ''}`}
                 onClick={() => toggleGenre(g)}
               >
@@ -187,23 +211,51 @@ function App() {
           <h1>🎬 Movie AI</h1>
           <div className="user-info"><span>👤 {user?.email}</span><button onClick={() => setView('login')} className="logout-btn">Logout</button></div>
         </div>
-        
-        <div className="hybrid-section">
-          <h2>Recommended For You <span className="rec-reason">({recReason})</span></h2>
-          <div className="movie-grid">
-            {hybridRecs.map((rec) => (
-              <div key={rec.id} className="movie-card" onClick={() => handleMovieClick(rec)}>
-                <img src={rec.poster} alt={rec.title} className="movie-poster" />
-                <h3>{rec.title}</h3>
-              </div>
-            ))}
-          </div>
-        </div>
+
+
 
         <div className="search-container">
           <input type="text" placeholder="Search any movie..." value={movie} onChange={e => setMovie(e.target.value)} className="search-box" />
           <button onClick={handleSearch} className="search-btn">{loading ? "..." : "Search"}</button>
         </div>
+        {/* 🔥 Recommended For You (Now BELOW search box) */}
+   {/* 🎯 SHOW SEARCH RESULTS IF EXISTS */}
+{recommendations.length > 0 ? (
+  <div className="movie-grid">
+    {recommendations.map((rec) => (
+      <div
+        key={rec.id}
+        className="movie-card"
+        onClick={() => handleMovieClick(rec)}
+      >
+        <img src={rec.poster} alt={rec.title} className="movie-poster" />
+        <h3>{rec.title}</h3>
+      </div>
+    ))}
+  </div>
+) : (
+  /* 🎯 OTHERWISE SHOW HYBRID */
+  <div className="hybrid-section">
+    <h2>
+      Recommended For You{" "}
+      <span className="rec-reason">({recReason})</span>
+    </h2>
+
+    <div className="movie-grid">
+      {hybridRecs.map((rec) => (
+        <div
+          key={rec.id}
+          className="movie-card"
+          onClick={() => handleMovieClick(rec)}
+        >
+          <img src={rec.poster} alt={rec.title} className="movie-poster" />
+          <h3>{rec.title}</h3>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
+
 
         <div className="movie-grid">
           {recommendations.map((rec) => (
@@ -219,20 +271,20 @@ function App() {
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <button className="close-btn" onClick={() => setSelectedMovie(null)}>&times;</button>
               <div className="modal-body">
-                <img src={selectedMovie.poster} className="modal-poster" alt="poster"/>
+                <img src={selectedMovie.poster} className="modal-poster" alt="poster" />
                 <div className="modal-info">
                   <h2>{selectedMovie.title}</h2>
                   <div className="rating-section">
                     <span>Rate: </span>
-                    {[1,2,3,4,5].map(s => <span key={s} className={`star ${s<=userRating?'filled':''}`} onClick={()=>submitRating(s)}>★</span>)}
+                    {[1, 2, 3, 4, 5].map(s => <span key={s} className={`star ${s <= userRating ? 'filled' : ''}`} onClick={() => submitRating(s)}>★</span>)}
                   </div>
                   <p className="overview">{selectedMovie.overview}</p>
                   <div className="stats-grid">
                     <div className="stat-item"><span className="label">Rating</span><span className="value">⭐ {selectedMovie.vote_average?.toFixed(1)}</span></div>
                     <div className="stat-item"><span className="label">Release</span><span className="value">{selectedMovie.release_date}</span></div>
                   </div>
-                  
-                  <h3 style={{marginTop: '20px'}}>Top Cast</h3>
+
+                  <h3 style={{ marginTop: '20px' }}>Top Cast</h3>
                   <div className="cast-grid">
                     {selectedMovie.credits?.cast.slice(0, 5).map(actor => (
                       <div key={actor.id} className="actor-card">
