@@ -5,12 +5,6 @@ import './App.css';
 function App() {
   const [view, setView] = useState('login');
   const [user, setUser] = useState(null);
-  useEffect(() => {
-  if (view === "dashboard" && user?.id) {
-    fetchHybridRecs(user.id);
-  }
-}, [view, user]);
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -77,27 +71,31 @@ function App() {
     fetchHybridRecs(user.id);
   };
 
-  // --- 3. HYBRID RECOMMENDATIONS ---
+  
+// --- 3. HYBRID RECOMMENDATIONS ---
 const fetchHybridRecs = async (userId) => {
   try {
     const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
-
-    console.log("HYBRID API RESPONSE:", res.data); // debug
-
-    const rawRecs = res.data.recommendations || [];
-    setRecReason(res.data.type || "Trending Now");
+    const rawRecs = res.data.recommendations;
+    setRecReason(res.data.type);
 
     const moviesWithPosters = [];
     for (const rec of rawRecs) {
       const posterUrl = await fetchPoster(rec.id);
       moviesWithPosters.push({ ...rec, poster: posterUrl });
     }
-
     setHybridRecs(moviesWithPosters);
-  } catch (error) {
-    console.error("Hybrid fetch error:", error);
+  } catch (err) {
+    console.error("Hybrid fetch error", err);
   }
 };
+
+// ✅ NOW useEffect
+useEffect(() => {
+  if (view === "dashboard" && user?.id) {
+    fetchHybridRecs(user.id);
+  }
+}, [view, user]); // eslint OK now
 
 
   // --- MOVIE HELPERS ---
