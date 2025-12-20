@@ -5,6 +5,12 @@ import './App.css';
 function App() {
   const [view, setView] = useState('login');
   const [user, setUser] = useState(null);
+  useEffect(() => {
+  if (view === "dashboard" && user?.id) {
+    fetchHybridRecs(user.id);
+  }
+}, [view, user]);
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
@@ -26,7 +32,7 @@ function App() {
   const TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf";
 
   // --- CLOUD API URL (Used everywhere now) ---
-  const API_URL = "https://movie-recommender-jbxp.onrender.com";
+  const API_URL = "http://127.0.0.1:8000";
 
 
   // --- 1. AUTH FLOW ---
@@ -71,31 +77,27 @@ function App() {
     fetchHybridRecs(user.id);
   };
 
-  
-// --- 3. HYBRID RECOMMENDATIONS ---
+  // --- 3. HYBRID RECOMMENDATIONS ---
 const fetchHybridRecs = async (userId) => {
   try {
     const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
-    const rawRecs = res.data.recommendations;
-    setRecReason(res.data.type);
+
+    console.log("HYBRID API RESPONSE:", res.data); // debug
+
+    const rawRecs = res.data.recommendations || [];
+    setRecReason(res.data.type || "Trending Now");
 
     const moviesWithPosters = [];
     for (const rec of rawRecs) {
       const posterUrl = await fetchPoster(rec.id);
       moviesWithPosters.push({ ...rec, poster: posterUrl });
     }
+
     setHybridRecs(moviesWithPosters);
-  } catch (err) {
-    console.error("Hybrid fetch error", err);
+  } catch (error) {
+    console.error("Hybrid fetch error:", error);
   }
 };
-
-// ✅ NOW useEffect
-useEffect(() => {
-  if (view === "dashboard" && user?.id) {
-    fetchHybridRecs(user.id);
-  }
-}, [view, user]); // eslint OK now
 
 
   // --- MOVIE HELPERS ---
@@ -217,43 +219,23 @@ useEffect(() => {
           <button onClick={handleSearch} className="search-btn">{loading ? "..." : "Search"}</button>
         </div>
         {/* 🔥 Recommended For You (Now BELOW search box) */}
-   {/* 🎯 SHOW SEARCH RESULTS IF EXISTS */}
-{recommendations.length > 0 ? (
-  <div className="movie-grid">
-    {recommendations.map((rec) => (
-      <div
-        key={rec.id}
-        className="movie-card"
-        onClick={() => handleMovieClick(rec)}
-      >
-        <img src={rec.poster} alt={rec.title} className="movie-poster" />
-        <h3>{rec.title}</h3>
-      </div>
-    ))}
-  </div>
-) : (
-  /* 🎯 OTHERWISE SHOW HYBRID */
-  <div className="hybrid-section">
-    <h2>
-      Recommended For You{" "}
-      <span className="rec-reason">({recReason})</span>
-    </h2>
-
-    <div className="movie-grid">
-      {hybridRecs.map((rec) => (
-        <div
-          key={rec.id}
-          className="movie-card"
-          onClick={() => handleMovieClick(rec)}
-        >
-          <img src={rec.poster} alt={rec.title} className="movie-poster" />
-          <h3>{rec.title}</h3>
+        <div className="hybrid-section">
+          <h2>
+            Recommended For You <span className="rec-reason">({recReason})</span>
+          </h2>
+          <div className="movie-grid">
+            {hybridRecs.map((rec) => (
+              <div
+                key={rec.id}
+                className="movie-card"
+                onClick={() => handleMovieClick(rec)}
+              >
+                <img src={rec.poster} alt={rec.title} className="movie-poster" />
+                <h3>{rec.title}</h3>
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
-    </div>
-  </div>
-)}
-
 
         <div className="movie-grid">
           {recommendations.map((rec) => (
