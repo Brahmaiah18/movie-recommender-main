@@ -11,6 +11,17 @@ import pandas as pd
 import requests
 movies = None
 similarity = None
+def tmdb_fallback_search(query):
+    url = "https://api.themoviedb.org/3/search/movie"
+    params = {"api_key": TMDB_API_KEY, "query": query}
+    try:
+        res = requests.get(url, params=params, timeout=10)
+        if res.status_code == 200:
+            return res.json().get("results", [])
+    except:
+        pass
+    return []
+
 
 TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf"
 
@@ -265,23 +276,29 @@ def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
 def recommend(movie: str):
     movie_lower = movie.lower()
 
-    # 1️⃣ Try ML
+    # 1️⃣ Try ML model if loaded
     if movies is not None and similarity is not None:
         movies['title_lower'] = movies['title'].str.lower()
+
         if movie_lower in movies['title_lower'].values:
-            idx = movies[movies['title_lower'] == movie_lower].index[0]
-            distances = similarity[idx]
-            result = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
+            movie_index = movies[movies['title_lower'] == movie_lower].index[0]
+            distances = similarity[movie_index]
+
+            movies_list = sorted(
+                list(enumerate(distances)),
+                reverse=True,
+                key=lambda x: x[1]
+            )[1:6]
 
             return {
                 "recommendations": [
                     {"title": movies.iloc[i[0]].title, "id": int(movies.iloc[i[0]].movie_id)}
-                    for i in result
+                    for i in movies_list
                 ]
             }
 
-    # 2️⃣ Fallback to TMDB
-    results = tmdb_search(movie)
+    # 2️⃣ Fallback to TMDB if ML fails
+    results = tmdb_fallback_search(movie)
 
     if results:
         return {
@@ -291,4 +308,5 @@ def recommend(movie: str):
             ]
         }
 
+    # 3️⃣ Final fallback — never break UI
     return {"recommendations": []}
