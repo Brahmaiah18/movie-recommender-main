@@ -60,7 +60,8 @@ function App() {
 
 
   // --- CLOUD API URL (Used everywhere now) ---
-  const API_URL = "https://movie-recommender-jbxp.onrender.com";
+  const API_URL = "https://movie-recommender-main.onrender.com";
+
 
 
   // --- 1. AUTH FLOW ---
