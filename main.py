@@ -78,11 +78,22 @@ app.add_middleware(
 @app.on_event("startup")
 def load_models():
     global movies, similarity
-    with open("movies.pkl", "rb") as f:
-        movies = pickle.load(f)
-    with open("similarity.pkl", "rb") as f:
-        similarity = pickle.load(f)
-    print("✅ ML models loaded successfully")
+    try:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+        with open(os.path.join(base_dir, "movies.pkl"), "rb") as f:
+            movies = pickle.load(f)
+
+        with open(os.path.join(base_dir, "similarity.pkl"), "rb") as f:
+            similarity = pickle.load(f)
+
+        print("✅ ML models loaded successfully")
+
+    except Exception as e:
+        print("❌ Model loading failed:", e)
+        movies = None
+        similarity = None
+
 
 # Load ML Models
 # NOTE: Ensure 'movies.pkl' and 'similarity.pkl' are in the same folder
@@ -257,45 +268,47 @@ def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
         "recommendations": recommendations
     }
 
-
 @app.get("/recommend/{movie}")
 def recommend(movie: str):
     movie_lower = movie.lower()
 
-    # 1️⃣ CASE-INSENSITIVE ML SEARCH
-    movies['title_lower'] = movies['title'].str.lower()
+    # 🧠 1) ML SEARCH
+    if movies is not None and similarity is not None:
+        movies['title_lower'] = movies['title'].str.lower()
 
-    if movie_lower in movies['title_lower'].values:
-        movie_index = movies[movies['title_lower'] == movie_lower].index[0]
-        distances = similarity[movie_index]
+        if movie_lower in movies['title_lower'].values:
+            movie_index = movies[movies['title_lower'] == movie_lower].index[0]
+            distances = similarity[movie_index]
 
-        movies_list = sorted(
-            list(enumerate(distances)),
-            reverse=True,
-            key=lambda x: x[1]
-        )[1:6]
+            movies_list = sorted(
+                list(enumerate(distances)),
+                reverse=True,
+                key=lambda x: x[1]
+            )[1:6]
 
-        recommended_movies = [
-            {
-                "title": movies.iloc[i[0]].title,
-                "id": int(movies.iloc[i[0]].movie_id)
+            return {
+                "input_movie": movie,
+                "recommendations": [
+                    {"title": movies.iloc[i[0]].title, "id": int(movies.iloc[i[0]].movie_id)}
+                    for i in movies_list
+                ]
             }
-            for i in movies_list
-        ]
 
+    # 🌐 2) TMDB FALLBACK (all languages)
+    url = "https://api.themoviedb.org/3/search/movie"
+    params = {"api_key": TMDB_API_KEY, "query": movie}
+    response = requests.get(url, params=params)
+
+    results = response.json().get("results", [])
+
+    if results:
         return {
             "input_movie": movie,
-            "recommendations": recommended_movies
+            "recommendations": [
+                {"id": m["id"], "title": m["title"]}
+                for m in results[:5]
+            ]
         }
 
-    # 2️⃣ FALLBACK → TMDB TELUGU SEARCH (also case-safe)
-    tmdb_results = search_tmdb_movie(movie)
-
-    if tmdb_results:
-        return {
-            "input_movie": movie,
-            "recommendations": tmdb_results
-        }
-
-    # 3️⃣ NOTHING FOUND
+    # ❌ 3) NOTHING FOUND
     raise HTTPException(status_code=404, detail="Movie not found")
