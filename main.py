@@ -21,6 +21,7 @@ TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf"
 
 # This command looks for the Cloud Database. If not found, it uses your Local one.
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Daggu%40123@127.0.0.1:5432/movie_recommender")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:Daggu%40123@127.0.0.1:5432/movie_recommender")
 
 # FIX: Render uses 'postgres://' but SQLAlchemy needs 'postgresql://'
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):

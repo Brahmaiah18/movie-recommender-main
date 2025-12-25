@@ -170,6 +170,7 @@ We calculate the angle between vectors.
 
 ## 🔗 Live Demo
 🎥 **[👉 Click here to visit the Live Website](https://movie-recommender-main.vercel.app)** *(Hosted on Vercel for frontend and Render for backend)*
+🎥 **[👉 Click here to visit the Live Website](https://movie-recommender-main.vercel.app)** *(Hosted on Vercel for frontend and Render for backend)*
 
 ---
 

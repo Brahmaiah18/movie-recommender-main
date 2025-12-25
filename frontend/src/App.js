@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './App.css';
 
@@ -45,6 +46,7 @@ useEffect(() => {
   const [hybridRecs, setHybridRecs] = useState([]); // For "Recommended For You"
   const [recReason, setRecReason] = useState('Trending Now');
 
+
   const [loading, setLoading] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [userRating, setUserRating] = useState(0);
@@ -54,15 +56,19 @@ useEffect(() => {
 
   const TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf";
 
+
   // --- CLOUD API URL (Used everywhere now) ---
   const API_URL = "http://127.0.0.1:8000";
 
 
   // --- 1. AUTH FLOW ---
   const handleSignup = async () => {
+  const handleSignup = async () => {
     try {
       // FIX: Uses Cloud URL
       const res = await axios.post(`${API_URL}/signup`, { email, password });
+      setUser({ id: res.data.user_id, email });
+      setView('onboarding');
       setUser({ id: res.data.user_id, email });
       setView('onboarding');
     } catch (err) { setAuthError("Signup failed. Email may be taken."); }
@@ -74,6 +80,7 @@ useEffect(() => {
       const res = await axios.post(`${API_URL}/login`, { email, password });
       setUser({ id: res.data.user_id, email });
       if (!res.data.genres) setView('onboarding');
+      else {
       else {
         setView('dashboard');
         fetchHybridRecs(res.data.user_id);
@@ -101,6 +108,14 @@ useEffect(() => {
   };
 
   // --- 3. HYBRID RECOMMENDATIONS ---
+const fetchHybridRecs = async (userId) => {
+  try {
+    const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
+
+    console.log("HYBRID API RESPONSE:", res.data); // debug
+
+    const rawRecs = res.data.recommendations || [];
+    setRecReason(res.data.type || "Trending Now");
 const fetchHybridRecs = async (userId) => {
   try {
     const res = await axios.get(`${API_URL}/recommend_hybrid/${userId}`);
@@ -204,6 +219,7 @@ const fetchPreferredGenreRecs = async (userId) => {
       // FIX: Uses Cloud URL
       axios.post(`${API_URL}/log_history`, { user_id: user.id, movie_id: movie.id })
         .catch(err => console.log("Logging skipped, opening movie anyway."));
+        .catch(err => console.log("Logging skipped, opening movie anyway."));
     }
 
     // 2. Open Details
@@ -246,10 +262,13 @@ const fetchPreferredGenreRecs = async (userId) => {
     return (
       <div className="App auth-container">
         <div className="auth-box" style={{ width: '600px' }}>
+        <div className="auth-box" style={{ width: '600px' }}>
           <h1>Welcome! 👋</h1>
           <h2>Select your favorite genres</h2>
           <div className="genres-grid">
             {genresList.map(g => (
+              <button
+                key={g}
               <button
                 key={g}
                 className={`genre-btn ${selectedGenres.includes(g) ? 'selected' : ''}`}
@@ -395,10 +414,12 @@ const fetchPreferredGenreRecs = async (userId) => {
               <button className="close-btn" onClick={() => setSelectedMovie(null)}>&times;</button>
               <div className="modal-body">
                 <img src={selectedMovie.poster} className="modal-poster" alt="poster" />
+                <img src={selectedMovie.poster} className="modal-poster" alt="poster" />
                 <div className="modal-info">
                   <h2>{selectedMovie.title}</h2>
                   <div className="rating-section">
                     <span>Rate: </span>
+                    {[1, 2, 3, 4, 5].map(s => <span key={s} className={`star ${s <= userRating ? 'filled' : ''}`} onClick={() => submitRating(s)}>★</span>)}
                     {[1, 2, 3, 4, 5].map(s => <span key={s} className={`star ${s <= userRating ? 'filled' : ''}`} onClick={() => submitRating(s)}>★</span>)}
                   </div>
                   <p className="overview">{selectedMovie.overview}</p>
@@ -406,6 +427,8 @@ const fetchPreferredGenreRecs = async (userId) => {
                     <div className="stat-item"><span className="label">Rating</span><span className="value">⭐ {selectedMovie.vote_average?.toFixed(1)}</span></div>
                     <div className="stat-item"><span className="label">Release</span><span className="value">{selectedMovie.release_date}</span></div>
                   </div>
+
+                  <h3 style={{ marginTop: '20px' }}>Top Cast</h3>
 
                   <h3 style={{ marginTop: '20px' }}>Top Cast</h3>
                   <div className="cast-grid">
