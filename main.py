@@ -274,39 +274,40 @@ def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
 
 @app.get("/recommend/{movie}")
 def recommend(movie: str):
-    movie_lower = movie.lower()
 
-    # 1️⃣ Try ML model if loaded
+    # 1️⃣ Try ML (if models loaded)
     if movies is not None and similarity is not None:
-        movies['title_lower'] = movies['title'].str.lower()
+        movies["title_lower"] = movies["title"].str.lower()
+        name = movie.lower()
 
-        if movie_lower in movies['title_lower'].values:
-            movie_index = movies[movies['title_lower'] == movie_lower].index[0]
-            distances = similarity[movie_index]
+        if name in movies["title_lower"].values:
+            index = movies[movies["title_lower"] == name].index[0]
+            distances = similarity[index]
 
-            movies_list = sorted(
-                list(enumerate(distances)),
-                reverse=True,
-                key=lambda x: x[1]
-            )[1:6]
+            items = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
             return {
+                "input_movie": movie,
                 "recommendations": [
-                    {"title": movies.iloc[i[0]].title, "id": int(movies.iloc[i[0]].movie_id)}
-                    for i in movies_list
+                    {"id": int(movies.iloc[i[0]].movie_id), "title": movies.iloc[i[0]].title}
+                    for i in items
                 ]
             }
 
-    # 2️⃣ Fallback to TMDB if ML fails
-    results = tmdb_fallback_search(movie)
+    # 2️⃣ Always fallback to TMDB
+    url = "https://api.themoviedb.org/3/search/movie"
+    params = {"api_key": TMDB_API_KEY, "query": movie}
+    r = requests.get(url, params=params, timeout=10)
 
-    if results:
-        return {
-            "recommendations": [
-                {"id": m["id"], "title": m["title"]}
-                for m in results[:5]
-            ]
-        }
+    data = r.json().get("results", [])
 
-    # 3️⃣ Final fallback — never break UI
-    return {"recommendations": []}
+    if not data:
+        return {"input_movie": movie, "recommendations": []}
+
+    return {
+        "input_movie": movie,
+        "recommendations": [
+            {"id": m["id"], "title": m["title"]}
+            for m in data[:5]
+        ]
+    }
