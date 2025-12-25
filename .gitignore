@@ -8,4 +8,4 @@ __pycache__/
 node_modules/
 build/
 .env
-.DS_Store
+.DS_Stores
