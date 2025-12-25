@@ -181,30 +181,41 @@ function App() {
   };
 
   const handleSearch = async () => {
-    setLoading(true);
+  if (!movie.trim()) return;
 
-    // 🔥 IMPORTANT: remove hybrid when searching
-    setHybridRecs([]);
-    setGenreRecs([]);
-    setHasSearched(true);
-    setRecReason("");
+  setLoading(true);
+  setHybridRecs([]);
+  setGenreRecs([]);
+  setHasSearched(true);
+  setRecReason("");
 
-    try {
-      const res = await axios.get(`${API_URL}/recommend/${movie}`);
-      const moviesWithPosters = [];
+  try {
+    const res = await axios.get(`${API_URL}/recommend/${movie}`);
 
-      for (const rec of res.data.recommendations) {
-        const posterUrl = await fetchPoster(rec.id);
-        moviesWithPosters.push({ ...rec, poster: posterUrl });
-      }
+    const results = res.data?.recommendations || [];
 
-      setRecommendations(moviesWithPosters);
-    } catch (err) {
-      alert("Movie not found!");
-    } finally {
-      setLoading(false);
+    if (results.length === 0) {
+      alert("No movies found");
+      setRecommendations([]);
+      return;
     }
-  };
+
+    const moviesWithPosters = await Promise.all(
+      results.map(async (rec) => {
+        const posterUrl = await fetchPoster(rec.id);
+        return { ...rec, poster: posterUrl };
+      })
+    );
+
+    setRecommendations(moviesWithPosters);
+  } catch (err) {
+    console.error("Search error:", err);
+    alert("Movie not found");
+    setRecommendations([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
 
   // --- SAFE MODE CLICK HANDLER ---
