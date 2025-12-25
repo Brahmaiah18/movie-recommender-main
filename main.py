@@ -207,41 +207,34 @@ def fetch_telugu_english_movies():
     return movies[:5]
 
 @app.get("/recommend_hybrid/{user_id}")
-def recommend_hybrid(user_id: int, db: Session = Depends(get_db)):
-    # STRATEGY: Trending (Telugu + English) — SAFE FALLBACK
-    telugu_english_movies = fetch_telugu_english_movies()
+def recommend_hybrid(user_id: int):
+    movies = tmdb_search("movie")  # always returns trending
 
     return {
-        "type": "Trending (Telugu + English)",
-        "recommendations": telugu_english_movies
+        "type": "Trending",
+        "recommendations": [
+            {"id": m["id"], "title": m["title"]}
+            for m in movies[:10]
+        ]
     }
 
-def search_tmdb_movie(movie_name: str):
+
+def tmdb_search(movie):
     url = "https://api.themoviedb.org/3/search/movie"
     params = {
         "api_key": TMDB_API_KEY,
-        "query": movie_name,
-        "region": "IN"
+        "query": movie,
+        "language": "en-US"
     }
 
-    response = requests.get(url, params=params)
+    r = requests.get(url, params=params, timeout=10)
 
-    if response.status_code != 200:
+    if r.status_code != 200:
+        print("❌ TMDB ERROR:", r.text)
         return []
 
-    results = response.json().get("results", [])
+    return r.json().get("results", [])
 
-    # ✅ FILTER ONLY TELUGU MOVIES
-    telugu_movies = [
-        {
-            "id": movie["id"],
-            "title": movie["title"]
-        }
-        for movie in results
-        if movie.get("original_language") == "te"
-    ]
-
-    return telugu_movies[:5]
 @app.get("/recommend_preferred/{user_id}")
 def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
@@ -272,43 +265,30 @@ def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
 def recommend(movie: str):
     movie_lower = movie.lower()
 
-    # 🧠 1) ML SEARCH
+    # 1️⃣ Try ML
     if movies is not None and similarity is not None:
         movies['title_lower'] = movies['title'].str.lower()
-
         if movie_lower in movies['title_lower'].values:
-            movie_index = movies[movies['title_lower'] == movie_lower].index[0]
-            distances = similarity[movie_index]
-
-            movies_list = sorted(
-                list(enumerate(distances)),
-                reverse=True,
-                key=lambda x: x[1]
-            )[1:6]
+            idx = movies[movies['title_lower'] == movie_lower].index[0]
+            distances = similarity[idx]
+            result = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
 
             return {
-                "input_movie": movie,
                 "recommendations": [
                     {"title": movies.iloc[i[0]].title, "id": int(movies.iloc[i[0]].movie_id)}
-                    for i in movies_list
+                    for i in result
                 ]
             }
 
-    # 🌐 2) TMDB FALLBACK (all languages)
-    url = "https://api.themoviedb.org/3/search/movie"
-    params = {"api_key": TMDB_API_KEY, "query": movie}
-    response = requests.get(url, params=params)
-
-    results = response.json().get("results", [])
+    # 2️⃣ Fallback to TMDB
+    results = tmdb_search(movie)
 
     if results:
         return {
-            "input_movie": movie,
             "recommendations": [
                 {"id": m["id"], "title": m["title"]}
                 for m in results[:5]
             ]
         }
 
-    # ❌ 3) NOTHING FOUND
-    raise HTTPException(status_code=404, detail="Movie not found")
+    return {"recommendations": []}

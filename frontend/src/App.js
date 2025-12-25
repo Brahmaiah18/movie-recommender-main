@@ -181,37 +181,28 @@ function App() {
   };
 
   const handleSearch = async () => {
-  if (!movie.trim()) return;
-
   setLoading(true);
-  setHybridRecs([]);
-  setGenreRecs([]);
   setHasSearched(true);
-  setRecReason("");
 
   try {
     const res = await axios.get(`${API_URL}/recommend/${movie}`);
 
-    const results = res.data?.recommendations || [];
-
-    if (results.length === 0) {
-      alert("No movies found");
-      setRecommendations([]);
+    if (!res.data.recommendations || res.data.recommendations.length === 0) {
+      alert("No movies found, showing trending instead");
+      fetchHybridRecs(user.id);
       return;
     }
 
     const moviesWithPosters = await Promise.all(
-      results.map(async (rec) => {
-        const posterUrl = await fetchPoster(rec.id);
-        return { ...rec, poster: posterUrl };
+      res.data.recommendations.map(async (rec) => {
+        const poster = await fetchPoster(rec.id);
+        return { ...rec, poster };
       })
     );
 
     setRecommendations(moviesWithPosters);
-  } catch (err) {
-    console.error("Search error:", err);
-    alert("Movie not found");
-    setRecommendations([]);
+  } catch {
+    alert("Search failed — server issue");
   } finally {
     setLoading(false);
   }
