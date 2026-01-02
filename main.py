@@ -11,18 +11,41 @@ import pandas as pd
 import requests
 movies = None
 similarity = None
-def tmdb_fallback_search(query):
-    url = "https://api.themoviedb.org/3/search/movie"
-    params = {"api_key": TMDB_API_KEY, "query": query}
-    try:
-        res = requests.get(url, params=params, timeout=10)
-        if res.status_code == 200:
-            return res.json().get("results", [])
-    except:
-        pass
-    return []
+def fetch_tmdb_poster_by_id(movie_id):
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+    params = {"api_key": TMDB_API_KEY}
+    r = requests.get(url, params=params, timeout=10)
+    if r.status_code != 200:
+        return "https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg"
+    return tmdb_poster(r.json())
+
+def fetch_tmdb_poster_by_id(movie_id):
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}"
+    params = {"api_key": TMDB_API_KEY}
+    r = requests.get(url, params=params, timeout=10)
+    data = r.json()
+    return tmdb_poster(data)
+
+def fix_movie_shape(movie):
+    return {
+        "id": movie["id"],
+        "title": movie["title"],
+        "poster": (
+            "https://image.tmdb.org/t/p/w500" + movie["poster_path"]
+            if movie.get("poster_path")
+            else "https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg"
+        )
+    }
 
 
+
+def tmdb_poster(movie):
+    path = movie.get("poster_path")
+    if path:
+        return "https://image.tmdb.org/t/p/w500" + path
+    return "https://upload.wikimedia.org/wikipedia/commons/6/65/No-Image-Placeholder.svg"
+
+    
 TMDB_API_KEY = "9efc5448a5465a64b6db56eb718f52cf"
 
 
@@ -219,15 +242,27 @@ def fetch_telugu_english_movies():
 
 @app.get("/recommend_hybrid/{user_id}")
 def recommend_hybrid(user_id: int):
-    movies = tmdb_search("movie")  # always returns trending
+    url = "https://api.themoviedb.org/3/trending/movie/week"
+    params = {"api_key": TMDB_API_KEY, "region": "IN"}
+
+    r = requests.get(url, params=params, timeout=10)
+    data = r.json().get("results", [])
 
     return {
-        "type": "Trending",
+        "type": "Trending + Personalized",
+        "reason": "Popular movies mixed with your taste",
         "recommendations": [
-            {"id": m["id"], "title": m["title"]}
-            for m in movies[:10]
-        ]
+            {
+                "id": m["id"],
+                "title": m["title"],
+                "poster": tmdb_poster(m)
+            }
+            for m in data
+            if m.get("title") and m.get("poster_path")
+        ][:10]
     }
+    
+
 
 
 def tmdb_search(movie):
@@ -256,48 +291,60 @@ def recommend_preferred(user_id: int, db: Session = Depends(get_db)):
     user_genres = user.genres.split(",")
 
     # Filter movies matching preferred genres
-    filtered_movies = movies.head(5)
+    filtered_movies = movies.sample(5)
+
 
 
     recommendations = []
     for _, row in filtered_movies.iterrows():
-        recommendations.append({
-            "id": int(row['movie_id']),
-            "title": row['title']
-        })
+       recommendations.append({
+    "id": int(row["movie_id"]),
+    "title": row["title"],
+    "poster": fetch_tmdb_poster_by_id(int(row["movie_id"]))
+})
+
+
 
     return {
-        "type": "Based on your preferred genres",
-        "genres": user_genres,
-        "recommendations": recommendations
-    }
+    "type": "Based on your preferred genres",
+    "genres": user_genres,
+    "reason": f"Because you like {', '.join(user_genres)} movies",
+    "recommendations": recommendations
+}
+
 
 @app.get("/recommend/{movie}")
-def recommend(movie: str):
-
-    # 1️⃣ Try ML (if models loaded)
-    if movies is not None and similarity is not None:
-        movies["title_lower"] = movies["title"].str.lower()
-        name = movie.lower()
-
-        if name in movies["title_lower"].values:
-            index = movies[movies["title_lower"] == name].index[0]
-            distances = similarity[index]
-
-            items = sorted(list(enumerate(distances)), reverse=True, key=lambda x: x[1])[1:6]
-
-            return {
-                "input_movie": movie,
-                "recommendations": [
-                    {"id": int(movies.iloc[i[0]].movie_id), "title": movies.iloc[i[0]].title}
-                    for i in items
-                ]
-            }
-
-    # 2️⃣ Always fallback to TMDB
+def recommend(movie: str, lang: str = "en"):
     url = "https://api.themoviedb.org/3/search/movie"
     params = {"api_key": TMDB_API_KEY, "query": movie}
     r = requests.get(url, params=params, timeout=10)
+
+    data = r.json().get("results", [])
+
+    clean_results = [
+        {
+            "id": m["id"],
+            "title": m["title"],
+            "poster": "https://image.tmdb.org/t/p/w500" + m["poster_path"]
+        }
+        for m in data
+        if m.get("poster_path") and m.get("title")
+    ]
+
+    return {
+        "input_movie": movie,
+        "recommendations": clean_results[:10]
+    }
+
+    # 2️⃣ Always fallback to TMDB
+    url = "https://api.themoviedb.org/3/search/movie"
+    params = {
+    "api_key": TMDB_API_KEY,
+    "query": movie,
+    "language": f"{lang}-IN"
+}
+
+    r = requests.get(url, params=params, timeout=20)
 
     data = r.json().get("results", [])
 
@@ -307,7 +354,48 @@ def recommend(movie: str):
     return {
         "input_movie": movie,
         "recommendations": [
-            {"id": m["id"], "title": m["title"]}
+            {"id": m["id"], "title": m["title"], "poster": tmdb_poster(m)}
             for m in data[:5]
         ]
     }
+@app.get("/trending/{lang}")
+def trending_by_language(lang: str):
+    url = "https://api.themoviedb.org/3/discover/movie"
+
+    params = {
+        "api_key": TMDB_API_KEY,
+        "with_original_language": lang,
+        "sort_by": "popularity.desc"
+    }
+
+    r = requests.get(url, params=params, timeout=10)
+    data = r.json().get("results", [])
+
+    return {
+        "language": lang,
+        "results": [
+            {
+                "id": m["id"],
+                "title": m.get("title"),
+                "poster": tmdb_poster(m)
+            }
+            for m in data if m.get("poster_path")
+        ][:10]
+    }
+
+
+
+
+@app.get("/trailer/{movie_id}")
+def get_trailer(movie_id: int):
+    url = f"https://api.themoviedb.org/3/movie/{movie_id}/videos"
+    params = {"api_key": TMDB_API_KEY}
+
+    r = requests.get(url, params=params, timeout=10)
+    data = r.json().get("results", [])
+
+    for v in data:
+        if v["site"] == "YouTube" and v["type"] == "Trailer":
+            return {"key": v["key"]}
+
+    return {"key": None}

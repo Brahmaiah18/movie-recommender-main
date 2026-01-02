@@ -179,33 +179,3 @@ We calculate the angle between vectors.
 * **GitHub:** [https://github.com/Brahmaiah18]
 * **LinkedIn:** [https://www.linkedin.com/in/brahmaiah-daggu-24b8792aa/]
 * **Project Type:** MCA Final Year Project
-@app.get("/recommend_hybrid/{user_id}")
-def recommend_hybrid(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-
-    recommendations = []
-
-    # 1️⃣ PERSONALIZED (GENRE BASED)
-    if user and user.genres:
-        genre_list = [g.strip().lower() for g in user.genres.split(",")]
-
-        genre_movies = movies[
-            movies["genres"].str.lower().apply(
-                lambda x: any(g in x for g in genre_list)
-            )
-        ].head(3)
-
-        recommendations.extend([
-            {"id": int(row.movie_id), "title": row.title}
-            for _, row in genre_movies.iterrows()
-        ])
-
-    # 2️⃣ TRENDING (SAFE FALLBACK)
-    trending_movies = fetch_telugu_english_movies()[:2]
-
-    recommendations.extend(trending_movies)
-
-    return {
-        "type": "Trending + Personalized",
-        "recommendations": recommendations
-    }
