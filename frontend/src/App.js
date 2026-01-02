@@ -106,7 +106,8 @@ function App() {
 
 
   // --- CLOUD API URL (Used everywhere now) ---
-  const API_URL = "http://127.0.0.1:8000";
+  const API_URL = "https://movie-recommender-main.onrender.com";
+
 
 
 
